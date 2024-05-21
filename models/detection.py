@@ -1,42 +1,39 @@
 import torch
-import os
-import json
-from PIL import Image
-from sklearn.manifold import TSNE
 import torch.nn as nn
 from torch.utils.data import DataLoader
 import matplotlib.pyplot as plt
-from torchvision.transforms import transforms
-import numpy as np
-from torch.utils.tensorboard import SummaryWriter
-import torchvision.models as models
-import torch.nn.functional as F
 
 
 class Model(nn.Module):
-    def __init__(self, num_channels=3, num_params=77, latent_dim=256):
+    def __init__(self, num_channels=3, num_classes=4):
         super().__init__()
-        # Image processing layers
         self.conv_layers = nn.Sequential(
-            nn.Conv2d(num_channels, 32, kernel_size=4, stride=2, padding=1),
+            nn.Conv2d(num_channels, 32, kernel_size=3, stride=1, padding=1),
             nn.ReLU(),
-            nn.Conv2d(32, 64, kernel_size=4, stride=2, padding=1),  # Output: [batch, 64, 128, 128]
+            nn.MaxPool2d(kernel_size=2, stride=2),
+            nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1),
             nn.ReLU(),
-            nn.Conv2d(64, 128, kernel_size=4, stride=2, padding=1),  # Output: [batch, 128, 64, 64]
+            nn.MaxPool2d(kernel_size=2, stride=2),
+            nn.Conv2d(64, 128, kernel_size=3, stride=1, padding=1),
             nn.ReLU(),
-            nn.Conv2d(128, 256, kernel_size=4, stride=2, padding=1),  # Output: [batch, 256, 32, 32]
-            nn.ReLU()
+            nn.MaxPool2d(kernel_size=2, stride=2)
+        )
+        self.fc_layers = nn.Sequential(
+            nn.Linear(128 * 16 * 16, 512),
+            nn.ReLU(),
+            nn.Linear(512, num_classes)
         )
 
-    def forward(self, x, params):
+    def forward(self, x):
         x = self.conv_layers(x)
-
+        x = x.view(x.size(0), -1)
+        x = self.fc_layers(x)
         return x
+
 
 class ModelTrainer:
     def __init__(self, model, train_dataset, val_dataset=None, batch_size=32, learning_rate=1e-3,
                  device="cuda" if torch.cuda.is_available() else "cpu", lr_step_size=10):
-
         self.model = model.to(device)
         self.train_dataset = train_dataset
         self.val_dataset = val_dataset
@@ -48,73 +45,68 @@ class ModelTrainer:
         self.train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
         self.val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False) if val_dataset else None
         self.optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
-        self.criterion = torch.nn.MSELoss()
-        self.lr_scheduler = True if lr_step_size > 0 else False
-
-        self.mse_loss = torch.nn.MSELoss()
-
+        self.criterion = torch.nn.CrossEntropyLoss()
+        self.scheduler = torch.optim.lr_scheduler.StepLR(self.optimizer, step_size=lr_step_size, gamma=0.1)
         self.loss_history = []
 
     def train_epoch(self, epoch):
         self.model.train()
         running_loss = 0.0
-        for batch_idx, (idle_images, perturbed_images, params) in enumerate(self.train_loader):
-            idle_images, perturbed_images, params = idle_images.to(self.device), perturbed_images.to(self.device), params.to(self.device)
-
+        for batch in self.train_loader:
+            images, labels = batch
+            images, labels = images.to(self.device), labels.to(self.device)
             self.optimizer.zero_grad()
-            recon_images, mu, log_var = self.model(idle_images, params)
-            loss = self.model.loss_function(recon_images, perturbed_images, mu, log_var)
-            # vgg_loss = self.perceptual_loss(recon_images, perturbed_images)
-            # loss = loss + self.vgg_loss_weight * vgg_loss
+            outputs = self.model(images)
+            loss = self.criterion(outputs, labels)
             loss.backward()
             self.optimizer.step()
-            running_loss += loss.item() * idle_images.size(0)
+            running_loss += loss.item() * images.size(0)
         epoch_loss = running_loss / len(self.train_loader.dataset)
         self.loss_history.append(epoch_loss)
-
         return epoch_loss
+
+    def validate_epoch(self):
+        self.model.eval()
+        running_loss = 0.0
+        correct = 0
+        total = 0
+        with torch.no_grad():
+            for batch in self.val_loader:
+                images, labels = batch
+                images, labels = images.to(self.device), labels.to(self.device)
+                outputs = self.model(images)
+                loss = self.criterion(outputs, labels)
+                running_loss += loss.item() * images.size(0)
+                _, predicted = torch.max(outputs.data, 1)
+                total += labels.size(0)
+                correct += (predicted == labels).sum().item()
+        epoch_loss = running_loss / len(self.val_loader.dataset)
+        accuracy = 100 * correct / total
+        return epoch_loss, accuracy
 
     def train(self, num_epochs):
         for epoch in range(num_epochs):
-            epoch_loss = self.train_epoch(epoch)
-            print(f'Epoch {epoch + 1}/{num_epochs}, Loss: {epoch_loss:.4f}')
-            # Step the scheduler after each epoch
-            if self.lr_scheduler:
-                self.scheduler.step()
+            train_loss = self.train_epoch(epoch)
+            val_loss, val_accuracy = self.validate_epoch()
+            print(f'Epoch {epoch + 1}/{num_epochs}, Train Loss: {train_loss:.4f}, Val Loss: {val_loss:.4f}, Val Accuracy: {val_accuracy:.2f}%')
+            self.scheduler.step()
         self.plot_losses()
 
     def plot_losses(self):
         plt.figure(figsize=(10, 5))
         plt.plot(self.loss_history, label='Training Loss')
-        plt.title('Training Loss - Variational Autoencoder')
+        plt.title('Training Loss')
         plt.xlabel('Epoch')
         plt.ylabel('Loss')
         plt.legend()
-        # plt.grid(True)
-        # plt.show()
-        # plt.ylim(1.7, 4)
-        plt.savefig(f'plot1.png')  # Save plot as PNG file
-        plt.close()  # Close the plot to free up memory
-
-        plt.figure(figsize=(10, 5))
-        plt.plot(self.loss_history, label='Training Loss')
-        plt.title('Training Loss - Variational Autoencoder')
-        plt.xlabel('Epoch')
-        plt.ylabel('Loss')
-        plt.legend()
-        # plt.grid(True)
-        # plt.show()
-        plt.ylim(7.21e6, 7.24e6)
-        plt.savefig(f'plot2.png')  # Save plot as PNG file
-        plt.close()  # Close the plot to free up memory
+        plt.savefig('training_loss.png')
+        plt.close()
 
 
 class Inference:
-
     @staticmethod
     def inference_display_results(output_image):
         plt.imshow(output_image)
-        plt.title('Output Detection after inference')
+        plt.title('Output Detection after Inference')
         plt.axis('off')
         plt.show()
-
