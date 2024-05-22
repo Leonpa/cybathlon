@@ -60,7 +60,7 @@ class CustomDataset(Dataset):
 
 
 class ModelTrainer:
-    def __init__(self, model, train_loader, val_loader=None, learning_rate=1e-3,
+    def __init__(self, model, train_loader, val_loader=None, learning_rate=0.001,
                  device="cuda" if torch.cuda.is_available() else "cpu", lr_step_size=10):
         self.model = model.to(device)
         self.train_loader = train_loader
@@ -145,7 +145,6 @@ class Inference:
             output = self.model(image.unsqueeze(0))
         return output
 
-    @staticmethod
     def render_image_with_boxes(self, image, true_box, predicted_box):
         fig, ax = plt.subplots(1)
         ax.imshow(image.permute(1, 2, 0).cpu().numpy())
@@ -165,25 +164,35 @@ class Inference:
 
         plt.show()
 
-    def run_inference(self):
-        for images, (class_labels, true_boxes) in self.test_loader:
-            images = images.to(self.device)
-            class_labels = class_labels.to(self.device)
-            true_boxes = true_boxes.to(self.device)
-            predictions = self.predict(images[0])
+    def run_inference(self, sample_indices=None, num_samples=1):
+        """
+        Run inference on specific samples or the first few samples.
+
+        :param sample_indices: List of indices to select specific samples from the test_loader.
+        :param num_samples: Number of samples to display if sample_indices is None.
+        """
+        if sample_indices:
+            samples = [self.test_loader.dataset[i] for i in sample_indices]
+        else:
+            samples = [self.test_loader.dataset[i] for i in range(num_samples)]
+
+        for image, (class_label, true_box) in samples:
+            image = image.to(self.device)
+            class_label = torch.tensor([class_label]).to(self.device)
+            true_box = true_box.to(self.device)
+            predictions = self.predict(image)
 
             # Debugging: Print shapes and content
             print("Predictions shape:", predictions.shape)
             print("Predictions:", predictions)
-            print("Labels:", class_labels[0])
-            print("True boxes:", true_boxes[0])
+            print("Labels:", class_label)
+            print("True boxes:", true_box)
 
             # Assuming the predictions return bounding box coordinates only
-            predicted_boxes = predictions.squeeze().cpu().numpy()
+            predicted_box = predictions.squeeze().cpu().numpy()
 
             # Debugging: Ensure we have the correct shapes
-            print("Predicted boxes:", predicted_boxes)
+            print("Predicted box:", predicted_box)
 
             # Render the image with true and predicted boxes
-            self.render_image_with_boxes(images[0].cpu(), true_boxes[0].cpu().numpy(), predicted_boxes)
-            break  # Render only the first image in the batch for this example
+            self.render_image_with_boxes(image.cpu(), true_box.cpu().numpy(), predicted_box)
