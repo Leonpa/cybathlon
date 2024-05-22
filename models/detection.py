@@ -1,7 +1,9 @@
 import torch
 import torch.nn as nn
-from torch.utils.data import DataLoader
+from torch.utils.data import Dataset
+from PIL import Image
 import matplotlib.pyplot as plt
+import matplotlib.patches as patches
 
 
 class Model(nn.Module):
@@ -31,19 +33,42 @@ class Model(nn.Module):
         return x
 
 
+class CustomDataset(Dataset):
+    def __init__(self, image_paths, transform=None):
+        self.image_paths = image_paths
+        self.transform = transform
+        print(f"Initialized dataset with {len(image_paths)} images")
+
+    def __len__(self):
+        return len(self.image_paths)
+
+    def __getitem__(self, idx):
+        img_path = self.image_paths[idx]
+        image = Image.open(img_path).convert("RGB")
+        label_path = img_path.replace('images', 'labels').replace('.jpg', '.txt')
+
+        with open(label_path, 'r') as f:
+            label = list(map(float, f.readline().strip().split()))
+
+        if self.transform:
+            image = self.transform(image)
+
+        class_label = int(label[0])
+        bbox = torch.tensor(label[1:])  # Assuming the label format is [class, x_center, y_center, width, height]
+
+        return image, (class_label, bbox)
+
+
 class ModelTrainer:
-    def __init__(self, model, train_dataset, val_dataset=None, batch_size=32, learning_rate=1e-3,
+    def __init__(self, model, train_loader, val_loader=None, learning_rate=1e-3,
                  device="cuda" if torch.cuda.is_available() else "cpu", lr_step_size=10):
         self.model = model.to(device)
-        self.train_dataset = train_dataset
-        self.val_dataset = val_dataset
-        self.batch_size = batch_size
+        self.train_loader = train_loader
+        self.val_loader = val_loader
         self.learning_rate = learning_rate
         self.device = device
         self.step_size = lr_step_size
 
-        self.train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-        self.val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False) if val_dataset else None
         self.optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
         self.criterion = torch.nn.CrossEntropyLoss()
         self.scheduler = torch.optim.lr_scheduler.StepLR(self.optimizer, step_size=lr_step_size, gamma=0.1)
@@ -53,11 +78,13 @@ class ModelTrainer:
         self.model.train()
         running_loss = 0.0
         for batch in self.train_loader:
-            images, labels = batch
-            images, labels = images.to(self.device), labels.to(self.device)
+            images, (class_labels, bboxes) = batch
+            images = images.to(self.device)
+            class_labels = class_labels.to(self.device)
+            bboxes = bboxes.to(self.device)
             self.optimizer.zero_grad()
             outputs = self.model(images)
-            loss = self.criterion(outputs, labels)
+            loss = self.criterion(outputs, class_labels)
             loss.backward()
             self.optimizer.step()
             running_loss += loss.item() * images.size(0)
@@ -72,14 +99,16 @@ class ModelTrainer:
         total = 0
         with torch.no_grad():
             for batch in self.val_loader:
-                images, labels = batch
-                images, labels = images.to(self.device), labels.to(self.device)
+                images, (class_labels, bboxes) = batch
+                images = images.to(self.device)
+                class_labels = class_labels.to(self.device)
+                bboxes = bboxes.to(self.device)
                 outputs = self.model(images)
-                loss = self.criterion(outputs, labels)
+                loss = self.criterion(outputs, class_labels)
                 running_loss += loss.item() * images.size(0)
                 _, predicted = torch.max(outputs.data, 1)
-                total += labels.size(0)
-                correct += (predicted == labels).sum().item()
+                total += class_labels.size(0)
+                correct += (predicted == class_labels).sum().item()
         epoch_loss = running_loss / len(self.val_loader.dataset)
         accuracy = 100 * correct / total
         return epoch_loss, accuracy
@@ -104,9 +133,57 @@ class ModelTrainer:
 
 
 class Inference:
+    def __init__(self, model, test_loader, device="cuda" if torch.cuda.is_available() else "cpu"):
+        self.model = model.to(device)
+        self.test_loader = test_loader
+        self.device = device
+
+    def predict(self, image):
+        self.model.eval()
+        with torch.no_grad():
+            image = image.to(self.device)
+            output = self.model(image.unsqueeze(0))
+        return output
+
     @staticmethod
-    def inference_display_results(output_image):
-        plt.imshow(output_image)
-        plt.title('Output Detection after Inference')
-        plt.axis('off')
+    def render_image_with_boxes(self, image, true_box, predicted_box):
+        fig, ax = plt.subplots(1)
+        ax.imshow(image.permute(1, 2, 0).cpu().numpy())
+
+        def draw_box(box, color):
+            x_center, y_center, width, height = box
+            x = x_center - width / 2
+            y = y_center - height / 2
+            rect = patches.Rectangle((x * 128, y * 128), width * 128, height * 128, linewidth=2, edgecolor=color, facecolor='none')
+            ax.add_patch(rect)
+
+        # Draw true box in green
+        draw_box(true_box, 'g')
+
+        # Draw predicted box in red
+        draw_box(predicted_box, 'r')
+
         plt.show()
+
+    def run_inference(self):
+        for images, (class_labels, true_boxes) in self.test_loader:
+            images = images.to(self.device)
+            class_labels = class_labels.to(self.device)
+            true_boxes = true_boxes.to(self.device)
+            predictions = self.predict(images[0])
+
+            # Debugging: Print shapes and content
+            print("Predictions shape:", predictions.shape)
+            print("Predictions:", predictions)
+            print("Labels:", class_labels[0])
+            print("True boxes:", true_boxes[0])
+
+            # Assuming the predictions return bounding box coordinates only
+            predicted_boxes = predictions.squeeze().cpu().numpy()
+
+            # Debugging: Ensure we have the correct shapes
+            print("Predicted boxes:", predicted_boxes)
+
+            # Render the image with true and predicted boxes
+            self.render_image_with_boxes(images[0].cpu(), true_boxes[0].cpu().numpy(), predicted_boxes)
+            break  # Render only the first image in the batch for this example
