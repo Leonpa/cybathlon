@@ -4,6 +4,7 @@ from torch.utils.data import Dataset
 from PIL import Image
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
+import os
 
 
 class Model(nn.Module):
@@ -34,29 +35,47 @@ class Model(nn.Module):
 
 
 class CustomDataset(Dataset):
-    def __init__(self, image_paths, transform=None):
-        self.image_paths = image_paths
+    def __init__(self, coco_json, image_dir, transform=None):
+        self.image_dir = image_dir
         self.transform = transform
-        print(f"Initialized dataset with {len(image_paths)} images")
+
+        # Load COCO JSON
+        with open(coco_json, 'r') as f:
+            self.coco_data = json.load(f)
+
+        # Create a dictionary for images and annotations
+        self.images = {img['id']: img for img in self.coco_data['images']}
+        self.annotations = {}
+        for ann in self.coco_data['annotations']:
+            if ann['image_id'] not in self.annotations:
+                self.annotations[ann['image_id']] = []
+            self.annotations[ann['image_id']].append(ann)
+
+        self.image_ids = list(self.images.keys())
+        print(f"Initialized dataset with {len(self.image_ids)} images")
 
     def __len__(self):
-        return len(self.image_paths)
+        return len(self.image_ids)
 
     def __getitem__(self, idx):
-        img_path = self.image_paths[idx]
+        image_id = self.image_ids[idx]
+        img_info = self.images[image_id]
+        img_path = os.path.join(self.image_dir, img_info['file_name'])
         image = Image.open(img_path).convert("RGB")
-        label_path = img_path.replace('images', 'labels').replace('.jpg', '.txt')
 
-        with open(label_path, 'r') as f:
-            label = list(map(float, f.readline().strip().split()))
+        labels = []
+        if image_id in self.annotations:
+            for ann in self.annotations[image_id]:
+                category_id = ann['category_id']
+                bbox = torch.tensor(ann['bbox'])  # x, y, width, height
+                labels.append((category_id, bbox))
 
+        # Apply transformation to the image if any
         if self.transform:
             image = self.transform(image)
 
-        class_label = int(label[0])
-        bbox = torch.tensor(label[1:])  # Assuming the label format is [class, x_center, y_center, width, height]
-
-        return image, (class_label, bbox)
+        # Return image and list of tuples (category_id, bbox)
+        return image, labels
 
 
 class ModelTrainer:
@@ -78,10 +97,10 @@ class ModelTrainer:
         self.model.train()
         running_loss = 0.0
         for batch in self.train_loader:
-            images, (class_labels, bboxes) = batch
+            images, labels = batch
             images = images.to(self.device)
-            class_labels = class_labels.to(self.device)
-            bboxes = bboxes.to(self.device)
+            class_labels = torch.tensor([lbl[0] for lbl in labels]).to(self.device)
+            bboxes = torch.stack([lbl[1] for lbl in labels]).to(self.device)
             self.optimizer.zero_grad()
             outputs = self.model(images)
             loss = self.criterion(outputs, class_labels)
@@ -99,10 +118,10 @@ class ModelTrainer:
         total = 0
         with torch.no_grad():
             for batch in self.val_loader:
-                images, (class_labels, bboxes) = batch
+                images, labels = batch
                 images = images.to(self.device)
-                class_labels = class_labels.to(self.device)
-                bboxes = bboxes.to(self.device)
+                class_labels = torch.tensor([lbl[0] for lbl in labels]).to(self.device)
+                bboxes = torch.stack([lbl[1] for lbl in labels]).to(self.device)
                 outputs = self.model(images)
                 loss = self.criterion(outputs, class_labels)
                 running_loss += loss.item() * images.size(0)
@@ -150,10 +169,8 @@ class Inference:
         ax.imshow(image.permute(1, 2, 0).cpu().numpy())
 
         def draw_box(box, color):
-            x_center, y_center, width, height = box
-            x = x_center - width / 2
-            y = y_center - height / 2
-            rect = patches.Rectangle((x * 128, y * 128), width * 128, height * 128, linewidth=2, edgecolor=color, facecolor='none')
+            x, y, width, height = box
+            rect = patches.Rectangle((x, y), width, height, linewidth=2, edgecolor=color, facecolor='none')
             ax.add_patch(rect)
 
         # Draw true box in green
@@ -165,34 +182,18 @@ class Inference:
         plt.show()
 
     def run_inference(self, sample_indices=None, num_samples=1):
-        """
-        Run inference on specific samples or the first few samples.
-
-        :param sample_indices: List of indices to select specific samples from the test_loader.
-        :param num_samples: Number of samples to display if sample_indices is None.
-        """
         if sample_indices:
             samples = [self.test_loader.dataset[i] for i in sample_indices]
         else:
             samples = [self.test_loader.dataset[i] for i in range(num_samples)]
 
-        for image, (class_label, true_box) in samples:
+        for image, labels in samples:
             image = image.to(self.device)
-            class_label = torch.tensor([class_label]).to(self.device)
-            true_box = true_box.to(self.device)
-            predictions = self.predict(image)
+            for class_label, true_box in labels:
+                predictions = self.predict(image)
 
-            # Debugging: Print shapes and content
-            print("Predictions shape:", predictions.shape)
-            print("Predictions:", predictions)
-            print("Labels:", class_label)
-            print("True boxes:", true_box)
+                # Assuming the predictions return bounding box coordinates only
+                predicted_box = predictions.squeeze().cpu().numpy()
 
-            # Assuming the predictions return bounding box coordinates only
-            predicted_box = predictions.squeeze().cpu().numpy()
-
-            # Debugging: Ensure we have the correct shapes
-            print("Predicted box:", predicted_box)
-
-            # Render the image with true and predicted boxes
-            self.render_image_with_boxes(image.cpu(), true_box.cpu().numpy(), predicted_box)
+                # Render the image with true and predicted boxes
+                self.render_image_with_boxes(image.cpu(), true_box.cpu().numpy(), predicted_box)
