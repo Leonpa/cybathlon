@@ -8,8 +8,8 @@ def draw_map(data, canvas):
     for obj in data["map"]:
         canvas.create_rectangle(obj["x"], obj["y"], obj["x"] + 10, obj["y"] + 10, fill="blue")
 
-def close_fullscreen(event=None):
-    root.attributes("-fullscreen", False)
+def close_application(event=None):
+    root.destroy()
 
 def scan_action():
     # Placeholder for the scan button action
@@ -22,8 +22,8 @@ root.title("Map Display")
 # Make the window fullscreen
 root.attributes("-fullscreen", True)
 
-# Bind the Escape key to close fullscreen mode
-root.bind("<Escape>", close_fullscreen)
+# Bind the Escape key to close the application
+root.bind("<Escape>", close_application)
 
 # Create the main frame
 frame = tk.Frame(root)
@@ -34,7 +34,7 @@ canvas = tk.Canvas(frame)
 canvas.pack(expand=True, fill='both')
 
 # Add the close button in the upper right corner
-close_button = tk.Button(root, text="X", command=close_fullscreen)
+close_button = tk.Button(root, text="X", command=close_application)
 close_button.place(relx=1.0, rely=0.0, anchor='ne')
 
 # Add the scan button at the bottom center
