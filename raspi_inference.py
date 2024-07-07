@@ -9,7 +9,7 @@ from utils.color_classify import classify_white
 import mediapipe as mp
 
 # Set the QT_QPA_PLATFORM_PLUGIN_PATH environment variable
-os.environ['QT_QPA_PLATFORM_PLUGIN_PATH'] = '/usr/lib/qt/plugins'
+os.environ['QT_QPA_PLATFORM_PLUGIN_PATH'] = '/usr/lib/aarch64-linux-gnu/qt5/plugins'
 
 
 def visualize(image, detection_result):
