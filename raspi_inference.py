@@ -46,7 +46,7 @@ def main():
     picam2.start_preview(Preview.QTGL)
     picam2.start()
 
-    base_options = python.BaseOptions(model_asset_path='model_2class.tflite')
+    base_options = python.BaseOptions(model_asset_path='models/model_2class.tflite')
     options = vision.ObjectDetectorOptions(base_options=base_options, score_threshold=0.5)
     detector = vision.ObjectDetector.create_from_options(options)
 
