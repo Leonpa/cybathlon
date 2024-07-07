@@ -50,7 +50,7 @@ def visualize_video(input_video_path, output_video_path):
     fourcc = cv2.VideoWriter_fourcc(*'mp4v')
     out = cv2.VideoWriter(output_video_path, fourcc, fps, (width, height))
 
-    base_options = python.BaseOptions(model_asset_path='model.tflite')
+    base_options = python.BaseOptions(model_asset_path='model_2class.tflite')
     options = vision.ObjectDetectorOptions(base_options=base_options, score_threshold=0.5)
     detector = vision.ObjectDetector.create_from_options(options)
 
