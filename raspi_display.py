@@ -1,19 +1,33 @@
 import tkinter as tk
 
+
 def draw_map(data, canvas):
     # Clear previous drawings
     canvas.delete("all")
     # Draw new map
-    # Replace with your actual drawing logic
     for obj in data["map"]:
-        canvas.create_rectangle(obj["x"], obj["y"], obj["x"] + 10, obj["y"] + 10, fill="blue")
+        x = obj["x"]
+        y = obj["y"]
+        shape = obj["shape"]
+        text = obj["text"]
+        color = "blue"
+
+        if shape == "square":
+            canvas.create_rectangle(x, y, x + 20, y + 20, fill=color)
+        elif shape == "round":
+            canvas.create_oval(x, y, x + 20, y + 20, fill=color)
+
+        canvas.create_text(x + 25, y + 10, text=text, anchor=tk.W)
+
 
 def close_application(event=None):
     root.destroy()
 
+
 def scan_action():
     # Placeholder for the scan button action
     print("Scan button pressed")
+
 
 # Initialize Tkinter window
 root = tk.Tk()
@@ -41,8 +55,15 @@ close_button.place(relx=1.0, rely=0.0, anchor='ne')
 scan_button = tk.Button(root, text="Scan", command=scan_action)
 scan_button.place(relx=0.5, rely=1.0, anchor='s')
 
-# Simulated received data
-received_data = {"map": [{"x": 50, "y": 50}, {"x": 100, "y": 100}]}
+# Simulated received data for testing
+received_data = {
+    "map": [
+        {"x": 50, "y": 50, "shape": "square", "text": "Object A"},
+        {"x": 150, "y": 100, "shape": "round", "text": "Object B"},
+        {"x": 250, "y": 150, "shape": "square", "text": "Object C"},
+        {"x": 350, "y": 200, "shape": "round", "text": "Object D"}
+    ]
+}
 draw_map(received_data, canvas)
 
 # Start the Tkinter main loop
