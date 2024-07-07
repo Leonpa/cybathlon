@@ -1,3 +1,4 @@
+import os
 import cv2
 import numpy as np
 import time
@@ -6,10 +7,10 @@ from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
 from utils.color_classify import classify_white
 import mediapipe as mp
-import os
 
-
+# Set the QT_QPA_PLATFORM_PLUGIN_PATH environment variable
 os.environ['QT_QPA_PLATFORM_PLUGIN_PATH'] = '/usr/lib/qt/plugins'
+
 
 def visualize(image, detection_result):
     for detection in detection_result:
@@ -37,40 +38,6 @@ def visualize(image, detection_result):
         image = cv2.putText(image, text, start_point, cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
     return image
 
-def visualize_video(input_video_path, output_video_path):
-    cap = cv2.VideoCapture(input_video_path)
-    if not cap.isOpened():
-        print(f"Error: Unable to open video file {input_video_path}")
-        return
-
-    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-    fps = cap.get(cv2.CAP_PROP_FPS)
-
-    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-    out = cv2.VideoWriter(output_video_path, fourcc, fps, (width, height))
-
-    base_options = python.BaseOptions(model_asset_path='model_2class.tflite')
-    options = vision.ObjectDetectorOptions(base_options=base_options, score_threshold=0.5)
-    detector = vision.ObjectDetector.create_from_options(options)
-
-    while True:
-        ret, frame = cap.read()
-        if not ret:
-            break
-
-        frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=frame_rgb)
-        detection_result = detector.detect(mp_image)
-        classified_detections = classify_white(frame_rgb, detection_result.detections)
-        frame_copy = np.copy(frame_rgb)
-        annotated_frame = visualize(frame_copy, classified_detections)
-        annotated_frame_bgr = cv2.cvtColor(annotated_frame, cv2.COLOR_RGB2BGR)
-        out.write(annotated_frame_bgr)
-
-    cap.release()
-    out.release()
-    cv2.destroyAllWindows()
 
 def main():
     picam2 = Picamera2()
@@ -79,28 +46,34 @@ def main():
     picam2.start_preview(Preview.QTGL)
     picam2.start()
 
-    base_options = python.BaseOptions(model_asset_path='model.tflite')
+    base_options = python.BaseOptions(model_asset_path='model_2class.tflite')
     options = vision.ObjectDetectorOptions(base_options=base_options, score_threshold=0.5)
     detector = vision.ObjectDetector.create_from_options(options)
 
     time.sleep(0.1)  # Allow the camera to warm up
 
-    while True:
-        frame = picam2.capture_array()
-        image_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=image_rgb)
-        detection_result = detector.detect(mp_image)
-        classified_detections = classify_white(image_rgb, detection_result.detections)
-        frame_copy = np.copy(image_rgb)
-        annotated_frame = visualize(frame_copy, classified_detections)
-        annotated_frame_bgr = cv2.cvtColor(annotated_frame, cv2.COLOR_RGB2BGR)
-        cv2.imshow("Frame", annotated_frame_bgr)
+    try:
+        while True:
+            frame = picam2.capture_array()
+            image_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=image_rgb)
+            detection_result = detector.detect(mp_image)
+            classified_detections = classify_white(image_rgb, detection_result.detections)
+            frame_copy = np.copy(image_rgb)
+            annotated_frame = visualize(frame_copy, classified_detections)
+            annotated_frame_bgr = cv2.cvtColor(annotated_frame, cv2.COLOR_RGB2BGR)
+            cv2.imshow("Frame", annotated_frame_bgr)
 
-        if cv2.waitKey(1) & 0xFF == ord('q'):
-            break
+            if cv2.waitKey(1) & 0xFF == ord('q'):
+                break
 
-    picam2.close()
-    cv2.destroyAllWindows()
+    except KeyboardInterrupt:
+        print("Interrupted by user")
+
+    finally:
+        picam2.close()
+        cv2.destroyAllWindows()
+
 
 if __name__ == "__main__":
     main()
