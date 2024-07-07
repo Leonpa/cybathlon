@@ -6,6 +6,10 @@ from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
 from utils.color_classify import classify_white
 import mediapipe as mp
+import os
+
+
+os.environ['QT_QPA_PLATFORM_PLUGIN_PATH'] = '/usr/lib/qt/plugins'
 
 def visualize(image, detection_result):
     for detection in detection_result:
