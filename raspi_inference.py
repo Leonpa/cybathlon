@@ -29,7 +29,7 @@ def main():
     # Load TensorFlow Lite model with GPU delegate
     interpreter = Interpreter(
         model_path='models/model_2class.tflite',
-        experimental_delegates=[load_delegate('libedgetpu.so.1')]  # Use GPU delegate
+        experimental_delegates=[load_delegate('libtensorflowlite_gpu_delegate.so')]
     )
     interpreter.allocate_tensors()
 
@@ -52,10 +52,10 @@ def main():
             start_time = time.time()
             detection_result = detect_objects(input_data)
             end_time = time.time()
-
             print(f"Time taken: {end_time - start_time:.2f} seconds")
 
             classified_detections = classify_white(image_rgb, detection_result)
+
             process_detections(classified_detections)
 
     try:
