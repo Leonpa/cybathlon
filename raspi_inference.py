@@ -26,7 +26,7 @@ def process_detections(detection_result):
 
 def main():
     picam2 = Picamera2()
-    camera_config = picam2.create_still_configuration(main={"size": (350, 200)})  # Set resolution to 1600x1200
+    camera_config = picam2.create_preview_configuration(main={"size": (1600, 1200)})  # Set resolution to 1600x1200
     picam2.configure(camera_config)
     picam2.start()
 
@@ -45,29 +45,20 @@ def main():
         nonlocal frame_count, start_time, fps
 
         while True:
-            frame_start_time = time.time()
-
             frame = picam2.capture_array()
             image_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=image_rgb)
+
+            ###
+            start_time = time.time()
+            ###
             detection_result = detector.detect(mp_image)
             classified_detections = classify_white(image_rgb, detection_result.detections)
             process_detections(classified_detections)
-
-            # Calculate the current framerate
-            frame_count += 1
-            elapsed_time = time.time() - start_time
-            if elapsed_time > 1:
-                fps = frame_count / elapsed_time
-                print(f"Current FPS: {fps:.2f}")
-                frame_count = 0
-                start_time = time.time()
-
-            # Framerate limiter
-            frame_end_time = time.time()
-            frame_duration = frame_end_time - frame_start_time
-            sleep_time = max(0, (1.0 / 10) - frame_duration)  # Limit to 10 FPS
-            time.sleep(sleep_time)
+            ###
+            end_time = time.time()
+            print(f"Time taken: {end_time - start_time:.2f} seconds")
+            ###
 
     try:
         capture_thread = threading.Thread(target=capture_and_process)
