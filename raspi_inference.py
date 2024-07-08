@@ -7,6 +7,7 @@ from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
 from utils.color_classify import classify_white
 import mediapipe as mp
+import threading
 
 
 def process_detections(detection_result):
@@ -25,7 +26,7 @@ def process_detections(detection_result):
 
 def main():
     picam2 = Picamera2()
-    camera_config = picam2.create_preview_configuration()
+    camera_config = picam2.create_preview_configuration(main={"size": (320, 240)})  # Lower resolution
     picam2.configure(camera_config)
     picam2.start()
 
@@ -40,7 +41,9 @@ def main():
     start_time = time.time()
     fps = 0
 
-    try:
+    def capture_and_process():
+        nonlocal frame_count, start_time, fps
+
         while True:
             frame_start_time = time.time()
 
@@ -65,6 +68,11 @@ def main():
             frame_duration = frame_end_time - frame_start_time
             sleep_time = max(0, (1.0 / 10) - frame_duration)  # Limit to 10 FPS
             time.sleep(sleep_time)
+
+    try:
+        capture_thread = threading.Thread(target=capture_and_process)
+        capture_thread.start()
+        capture_thread.join()
 
     except KeyboardInterrupt:
         print("Interrupted by user")
