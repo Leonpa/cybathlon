@@ -22,6 +22,7 @@ def process_detections(detection_result):
         print(f"Detected {label} with confidence {confidence:.2f}")
         print(f"Bounding box: Start({start_point}), End({end_point})")
 
+
 def main():
     picam2 = Picamera2()
     camera_config = picam2.create_preview_configuration()
@@ -34,8 +35,15 @@ def main():
 
     time.sleep(0.1)  # Allow the camera to warm up
 
+    # Initialize variables for framerate calculation
+    frame_count = 0
+    start_time = time.time()
+    fps = 0
+
     try:
         while True:
+            frame_start_time = time.time()
+
             frame = picam2.capture_array()
             image_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=image_rgb)
@@ -43,13 +51,27 @@ def main():
             classified_detections = classify_white(image_rgb, detection_result.detections)
             process_detections(classified_detections)
 
-            time.sleep(0.1)  # Adjust the sleep time as needed
+            # Calculate the current framerate
+            frame_count += 1
+            elapsed_time = time.time() - start_time
+            if elapsed_time > 1:
+                fps = frame_count / elapsed_time
+                print(f"Current FPS: {fps:.2f}")
+                frame_count = 0
+                start_time = time.time()
+
+            # Framerate limiter
+            frame_end_time = time.time()
+            frame_duration = frame_end_time - frame_start_time
+            sleep_time = max(0, (1.0 / 10) - frame_duration)  # Limit to 10 FPS
+            time.sleep(sleep_time)
 
     except KeyboardInterrupt:
         print("Interrupted by user")
 
     finally:
         picam2.close()
+
 
 if __name__ == "__main__":
     main()
