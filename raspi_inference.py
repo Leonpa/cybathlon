@@ -39,6 +39,9 @@ def main():
 
     frame_queue = Queue(maxsize=1)
 
+    frame_count = 0
+    start_time = time.time()
+
     def capture_frames():
         while True:
             frame = picam2.capture_array()
@@ -46,21 +49,27 @@ def main():
                 frame_queue.put(frame)
 
     def process_frames():
+        nonlocal frame_count, start_time
         while True:
             if not frame_queue.empty():
-                start_conversion = time.time()
-
                 frame = frame_queue.get()
-
                 image_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-
                 mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=image_rgb)
+
+                start_processing = time.time()
                 detection_result = detector.detect(mp_image)
                 classified_detections = classify_white(image_rgb, detection_result.detections)
                 process_detections(classified_detections)
+                end_processing = time.time()
 
-                end_conversion = time.time()
-                print(f"Conversion Time: {end_conversion - start_conversion:.4f} seconds")
+                frame_count += 1
+                elapsed_time = end_processing - start_time
+                if elapsed_time >= 1:
+                    fps = frame_count / elapsed_time
+                    print(f"FPS: {fps:.2f}")
+                    frame_count = 0
+                    start_time = time.time()
+
     try:
         capture_thread = threading.Thread(target=capture_frames)
         process_thread = threading.Thread(target=process_frames)
