@@ -3,12 +3,9 @@ import cv2
 import numpy as np
 import time
 from picamera2 import Picamera2
-from mediapipe.tasks import python
-from mediapipe.tasks.python import vision
+from tflite_runtime.interpreter import Interpreter, load_delegate
 from utils.color_classify import classify_white
-import mediapipe as mp
 import threading
-
 
 def process_detections(detection_result):
     for detection in detection_result:
@@ -23,46 +20,43 @@ def process_detections(detection_result):
         print(f"Detected {label} with confidence {confidence:.2f}")
         print(f"Bounding box: Start({start_point}), End({end_point})")
 
-
 def main():
     picam2 = Picamera2()
     camera_config = picam2.create_preview_configuration(main={"size": (1600, 1200)})  # Set resolution to 1600x1200
     picam2.configure(camera_config)
     picam2.start()
 
-    base_options = python.BaseOptions(model_asset_path='models/model_2class.tflite')
-    options = vision.ObjectDetectorOptions(base_options=base_options, score_threshold=0.5)
-    detector = vision.ObjectDetector.create_from_options(options)
+    # Load TensorFlow Lite model with GPU delegate
+    interpreter = Interpreter(
+        model_path='models/model_2class.tflite',
+        experimental_delegates=[load_delegate('libedgetpu.so.1')]  # Use GPU delegate
+    )
+    interpreter.allocate_tensors()
+
+    input_details = interpreter.get_input_details()
+    output_details = interpreter.get_output_details()
+
+    def detect_objects(image):
+        interpreter.set_tensor(input_details[0]['index'], image)
+        interpreter.invoke()
+        return interpreter.get_tensor(output_details[0]['index'])
 
     time.sleep(0.1)  # Allow the camera to warm up
 
-    # Initialize variables for framerate calculation
-    frame_count = 0
-    start_time = time.time()
-    fps = 0
-
     def capture_and_process():
-        nonlocal frame_count, start_time, fps
-
         while True:
             frame = picam2.capture_array()
             image_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=image_rgb)
+            input_data = np.expand_dims(image_rgb, axis=0).astype(np.float32) / 255.0  # Normalize input
 
-            detection_result = detector.detect(mp_image)
-
-
-            ###
             start_time = time.time()
-            ###
-            classified_detections = classify_white(image_rgb, detection_result.detections)
-            ###
+            detection_result = detect_objects(input_data)
             end_time = time.time()
+
             print(f"Time taken: {end_time - start_time:.2f} seconds")
-            ###
+
+            classified_detections = classify_white(image_rgb, detection_result)
             process_detections(classified_detections)
-
-
 
     try:
         capture_thread = threading.Thread(target=capture_and_process)
@@ -74,7 +68,6 @@ def main():
 
     finally:
         picam2.close()
-
 
 if __name__ == "__main__":
     main()
