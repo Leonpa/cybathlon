@@ -26,7 +26,7 @@ def process_detections(detection_result):
 
 def main():
     picam2 = Picamera2()
-    camera_config = picam2.create_preview_configuration(main={"size": (320, 240)})  # Lower resolution
+    camera_config = picam2.create_still_configuration(main={"size": (1600, 1200)})  # Set resolution to 1600x1200
     picam2.configure(camera_config)
     picam2.start()
 
