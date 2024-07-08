@@ -49,14 +49,14 @@ def main():
         while True:
             if not frame_queue.empty():
                 frame = frame_queue.get()
+
+                start_conversion = time.time()
                 image_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                end_conversion = time.time()
+                print(f"Conversion Time: {end_conversion - start_conversion:.4f} seconds")
+
                 mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=image_rgb)
-
-                start_time = time.time()
                 detection_result = detector.detect(mp_image)
-                end_time = time.time()
-
-                print(f"Time taken: {end_time - start_time:.2f} seconds")
                 classified_detections = classify_white(image_rgb, detection_result.detections)
                 process_detections(classified_detections)
 
