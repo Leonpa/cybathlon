@@ -48,18 +48,19 @@ def main():
     def process_frames():
         while True:
             if not frame_queue.empty():
+                start_conversion = time.time()
+
                 frame = frame_queue.get()
 
-                start_conversion = time.time()
                 image_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                end_conversion = time.time()
-                print(f"Conversion Time: {end_conversion - start_conversion:.4f} seconds")
 
                 mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=image_rgb)
                 detection_result = detector.detect(mp_image)
                 classified_detections = classify_white(image_rgb, detection_result.detections)
                 process_detections(classified_detections)
 
+                end_conversion = time.time()
+                print(f"Conversion Time: {end_conversion - start_conversion:.4f} seconds")
     try:
         capture_thread = threading.Thread(target=capture_frames)
         process_thread = threading.Thread(target=process_frames)
