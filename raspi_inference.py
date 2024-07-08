@@ -3,9 +3,13 @@ import cv2
 import numpy as np
 import time
 from picamera2 import Picamera2
-from tflite_runtime.interpreter import Interpreter, load_delegate
+from mediapipe.tasks import python
+from mediapipe.tasks.python import vision
 from utils.color_classify import classify_white
+import mediapipe as mp
 import threading
+from queue import Queue
+
 
 def process_detections(detection_result):
     for detection in detection_result:
@@ -20,54 +24,56 @@ def process_detections(detection_result):
         print(f"Detected {label} with confidence {confidence:.2f}")
         print(f"Bounding box: Start({start_point}), End({end_point})")
 
+
 def main():
     picam2 = Picamera2()
     camera_config = picam2.create_preview_configuration(main={"size": (1600, 1200)})  # Set resolution to 1600x1200
     picam2.configure(camera_config)
     picam2.start()
 
-    # Load TensorFlow Lite model with GPU delegate
-    interpreter = Interpreter(
-        model_path='models/model_2class.tflite',
-        experimental_delegates=[load_delegate('libtensorflowlite_gpu_delegate.so')]
-    )
-    interpreter.allocate_tensors()
-
-    input_details = interpreter.get_input_details()
-    output_details = interpreter.get_output_details()
-
-    def detect_objects(image):
-        interpreter.set_tensor(input_details[0]['index'], image)
-        interpreter.invoke()
-        return interpreter.get_tensor(output_details[0]['index'])
+    base_options = python.BaseOptions(model_asset_path='models/model_2class.tflite')
+    options = vision.ObjectDetectorOptions(base_options=base_options, score_threshold=0.5)
+    detector = vision.ObjectDetector.create_from_options(options)
 
     time.sleep(0.1)  # Allow the camera to warm up
 
-    def capture_and_process():
+    frame_queue = Queue(maxsize=1)
+
+    def capture_frames():
         while True:
             frame = picam2.capture_array()
-            image_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            input_data = np.expand_dims(image_rgb, axis=0).astype(np.float32) / 255.0  # Normalize input
+            if not frame_queue.full():
+                frame_queue.put(frame)
 
-            start_time = time.time()
-            detection_result = detect_objects(input_data)
-            end_time = time.time()
-            print(f"Time taken: {end_time - start_time:.2f} seconds")
+    def process_frames():
+        while True:
+            if not frame_queue.empty():
+                frame = frame_queue.get()
+                image_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=image_rgb)
 
-            classified_detections = classify_white(image_rgb, detection_result)
+                start_time = time.time()
+                detection_result = detector.detect(mp_image)
+                end_time = time.time()
 
-            process_detections(classified_detections)
+                print(f"Time taken: {end_time - start_time:.2f} seconds")
+                classified_detections = classify_white(image_rgb, detection_result.detections)
+                process_detections(classified_detections)
 
     try:
-        capture_thread = threading.Thread(target=capture_and_process)
+        capture_thread = threading.Thread(target=capture_frames)
+        process_thread = threading.Thread(target=process_frames)
         capture_thread.start()
+        process_thread.start()
         capture_thread.join()
+        process_thread.join()
 
     except KeyboardInterrupt:
         print("Interrupted by user")
 
     finally:
         picam2.close()
+
 
 if __name__ == "__main__":
     main()
