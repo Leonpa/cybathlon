@@ -3,35 +3,33 @@ import numpy as np
 from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
 import mediapipe as mp
+from multiprocessing import Pool
 
+def calculate_avg_intensity(bbox_region):
+    return np.mean(bbox_region)
 
 def classify_white(image, detections):
-    classified_detections = []
+    bbox_regions = []
     for detection in detections:
         bbox = detection.bounding_box
         x_min, y_min = int(bbox.origin_x), int(bbox.origin_y)
         x_max, y_max = int(bbox.origin_x + bbox.width), int(bbox.origin_y + bbox.height)
-
-        # Extract the bounding box region
         bbox_region = image[y_min:y_max, x_min:x_max]
+        bbox_regions.append((detection, bbox_region))
 
-        # Calculate the average intensity of the region
-        avg_intensity = np.mean(bbox_region)
+    with Pool() as pool:
+        avg_intensities = pool.map(calculate_avg_intensity, [region for _, region in bbox_regions])
 
-        classified_detections.append((detection, avg_intensity))
-
-    # Determine the threshold for classification based on intensity
+    classified_detections = []
     threshold = 170
-
-    # Classify detections into 'white' (hard) and 'non-white' (soft)
-    for i in range(len(classified_detections)):
-        detection, avg_intensity = classified_detections[i]
-        if avg_intensity > threshold:  # Higher intensity means white (hard)
+    for (detection, _), avg_intensity in zip(bbox_regions, avg_intensities):
+        if avg_intensity > threshold:
             detection.categories[0].category_name += "-hard"
         else:
             detection.categories[0].category_name += "-soft"
+        classified_detections.append(detection)
 
-    return [detection for detection, _ in classified_detections]
+    return classified_detections
 
 
 def visualize(image, detection_result):
