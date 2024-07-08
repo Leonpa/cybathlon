@@ -50,16 +50,17 @@ def main():
             mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=image_rgb)
 
             detection_result = detector.detect(mp_image)
+            classified_detections = classify_white(image_rgb, detection_result.detections)
+
             ###
             start_time = time.time()
             ###
-            classified_detections = classify_white(image_rgb, detection_result.detections)
+            process_detections(classified_detections)
             ###
             end_time = time.time()
             print(f"Time taken: {end_time - start_time:.2f} seconds")
             ###
 
-            process_detections(classified_detections)
 
     try:
         capture_thread = threading.Thread(target=capture_and_process)
