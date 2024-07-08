@@ -15,9 +15,8 @@ def classify_white(image, detections):
         # Extract the bounding box region
         bbox_region = image[y_min:y_max, x_min:x_max]
 
-        # Calculate the average color values in the bounding box
-        avg_color = np.mean(bbox_region, axis=(0, 1))  # Average over the height and width
-        avg_intensity = np.mean(avg_color)
+        # Calculate the average intensity of the region
+        avg_intensity = np.mean(bbox_region)
 
         classified_detections.append((detection, avg_intensity))
 
