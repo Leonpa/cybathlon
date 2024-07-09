@@ -2,6 +2,7 @@ import tkinter as tk
 import threading
 import json
 from bluedot.btcomm import BluetoothServer
+import time
 
 
 def draw_map(data, canvas):
@@ -32,17 +33,20 @@ def scan_action():
 
 
 def data_received(data):
+    global last_processed_time
+    # Split the incoming data by newline character
     messages = data.split('\n')
     for message in messages:
-        if message.strip():
+        if message.strip():  # Ensure that the message is not empty
             try:
                 parsed_data = json.loads(message)
-                print("Received data:", parsed_data)
+                print(f"Received data at {time.time()}: {parsed_data}")
                 x, y = parsed_data["center"]
                 label = parsed_data["label"]
                 obj = {"x": x, "y": y, "shape": "square", "text": label}
                 received_data["map"].append(obj)
                 draw_map(received_data, canvas)
+                last_processed_time = time.time()
             except json.JSONDecodeError as e:
                 print(f"Failed to decode JSON message: {e}")
 
@@ -50,6 +54,8 @@ def data_received(data):
 def server_thread():
     server = BluetoothServer(data_received, port=1)
     print("Bluetooth server started")
+    while True:
+        time.sleep(0.1)  # Adjust sleep time as necessary
 
 
 # Initialize Tkinter window
@@ -82,6 +88,8 @@ scan_button.place(relx=0.5, rely=1.0, anchor='s')
 received_data = {
     "map": []
 }
+
+last_processed_time = time.time()
 
 # Start the server thread
 threading.Thread(target=server_thread, daemon=True).start()

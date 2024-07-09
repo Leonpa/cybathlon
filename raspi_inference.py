@@ -50,8 +50,6 @@ def process_detections(detection_result, client):
         data = {
             "label": label,
             "confidence": confidence,
-            "start_point": start_point,
-            "end_point": end_point,
             "center": (center_x, center_y)
         }
 
@@ -96,7 +94,11 @@ def main():
 
                 detection_result = detector.detect(mp_image)
                 classified_detections = classify_white(image_rgb, detection_result.detections)
+                start_time = time.time()
                 process_detections(classified_detections, client)
+                end_time = time.time()
+                print(f"Time taken for processing and sending: {end_time - start_time:.2f} seconds")
+
 
     try:
         capture_thread = threading.Thread(target=capture_frames)
