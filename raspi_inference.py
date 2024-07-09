@@ -9,9 +9,11 @@ from utils.color_classify import classify_white
 import mediapipe as mp
 import threading
 from queue import Queue
+import json
+import socket
 
 
-def process_detections(detection_result):
+def process_detections(detection_result, client_socket):
     for detection in detection_result:
         bbox = detection.bounding_box
         start_point = (int(bbox.origin_x), int(bbox.origin_y))
@@ -20,12 +22,27 @@ def process_detections(detection_result):
         label = detection.categories[0].category_name
         confidence = detection.categories[0].score
 
-        # Print the bounding box coordinates and the detected object's class
+        center_x = int((bbox.origin_x + bbox.width) / 2)
+        center_y = int((bbox.origin_y + bbox.height) / 2)
+
+        data = {
+            "label": label,
+            "confidence": confidence,
+            "start_point": start_point,
+            "end_point": end_point,
+            "center": (center_x, center_y)
+        }
+
+        client_socket.sendall(json.dumps(data).encode('utf-8'))
+
         print(f"Detected {label} with confidence {confidence:.2f}")
-        print(f"Bounding box: Start({start_point}), End({end_point})")
+        print(f"Bounding box: x ({center_x}), y ({center_y})")
 
 
 def main():
+    client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    client_socket.connect(('192.168.1.10', 5000))  # Replace with server's IP and port
+
     picam2 = Picamera2()
     camera_config = picam2.create_preview_configuration(main={"size": (1600, 1200)})  # Set resolution to 1600x1200
     picam2.configure(camera_config)
@@ -39,9 +56,6 @@ def main():
 
     frame_queue = Queue(maxsize=1)
 
-    frame_count = 0
-    start_time = time.time()
-
     def capture_frames():
         while True:
             frame = picam2.capture_array()
@@ -49,26 +63,15 @@ def main():
                 frame_queue.put(frame)
 
     def process_frames():
-        nonlocal frame_count, start_time
         while True:
             if not frame_queue.empty():
                 frame = frame_queue.get()
                 image_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
                 mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=image_rgb)
 
-                start_processing = time.time()
                 detection_result = detector.detect(mp_image)
                 classified_detections = classify_white(image_rgb, detection_result.detections)
-                process_detections(classified_detections)
-                end_processing = time.time()
-
-                frame_count += 1
-                elapsed_time = end_processing - start_time
-                if elapsed_time >= 1:
-                    fps = frame_count / elapsed_time
-                    print(f"FPS: {fps:.2f}")
-                    frame_count = 0
-                    start_time = time.time()
+                process_detections(classified_detections, client_socket)
 
     try:
         capture_thread = threading.Thread(target=capture_frames)
@@ -83,6 +86,7 @@ def main():
 
     finally:
         picam2.close()
+        client_socket.close()
 
 
 if __name__ == "__main__":

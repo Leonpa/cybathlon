@@ -1,4 +1,7 @@
 import tkinter as tk
+import socket
+import threading
+import json
 
 
 def draw_map(data, canvas):
@@ -29,6 +32,29 @@ def scan_action():
     print("Scan button pressed")
 
 
+def server_thread():
+    server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    server_socket.bind(('0.0.0.0', 5000))  # Bind to all available interfaces and port 5000
+    server_socket.listen(1)
+    print("Server listening on port", 5000)
+
+    while True:
+        client_socket, addr = server_socket.accept()
+        print('Connection from:', addr)
+        while True:
+            data = client_socket.recv(1024)
+            if not data:
+                break
+            data = json.loads(data.decode('utf-8'))
+            print("Received data:", data)
+            x, y = data["center"]
+            label = data["label"]
+            obj = {"x": x, "y": y, "shape": "square", "text": label}
+            received_data["map"].append(obj)
+            draw_map(received_data, canvas)
+        client_socket.close()
+
+
 # Initialize Tkinter window
 root = tk.Tk()
 root.title("Map Display")
@@ -55,16 +81,12 @@ close_button.place(relx=1.0, rely=0.0, anchor='ne')
 scan_button = tk.Button(root, text="Scan", command=scan_action)
 scan_button.place(relx=0.5, rely=1.0, anchor='s')
 
-# Simulated received data for testing
+# Received data
 received_data = {
-    "map": [
-        {"x": 50, "y": 50, "shape": "square", "text": "Object A"},
-        {"x": 150, "y": 100, "shape": "round", "text": "Object B"},
-        {"x": 250, "y": 150, "shape": "square", "text": "Object C"},
-        {"x": 350, "y": 200, "shape": "round", "text": "Object D"}
-    ]
+    "map": []
 }
-draw_map(received_data, canvas)
+# Start the server thread
+threading.Thread(target=server_thread, daemon=True).start()
 
 # Start the Tkinter main loop
 root.mainloop()
