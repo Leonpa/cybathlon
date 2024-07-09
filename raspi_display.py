@@ -1,9 +1,7 @@
 import tkinter as tk
-import bluetooth
 import threading
 import json
-
-SERVER_BLUETOOTH_PORT = 1
+from bluedot.btcomm import BluetoothServer
 
 
 def draw_map(data, canvas):
@@ -33,28 +31,19 @@ def scan_action():
     print("Scan button pressed")
 
 
+def data_received(data):
+    data = json.loads(data)
+    print("Received data:", data)
+    x, y = data["center"]
+    label = data["label"]
+    obj = {"x": x, "y": y, "shape": "square", "text": label}
+    received_data["map"].append(obj)
+    draw_map(received_data, canvas)
+
+
 def server_thread():
-    server_socket = bluetooth.BluetoothSocket(bluetooth.RFCOMM)
-    server_socket.bind(("", SERVER_BLUETOOTH_PORT))
-    server_socket.listen(1)
-    print("Bluetooth server listening on port", SERVER_BLUETOOTH_PORT)
-
-    client_socket, client_info = server_socket.accept()
-    print("Accepted connection from", client_info)
-
-    while True:
-        data = client_socket.recv(1024)
-        if not data:
-            break
-        data = json.loads(data.decode('utf-8'))
-        print("Received data:", data)
-        x, y = data["center"]
-        label = data["label"]
-        obj = {"x": x, "y": y, "shape": "square", "text": label}
-        received_data["map"].append(obj)
-        draw_map(received_data, canvas)
-
-    client_socket.close()
+    server = BluetoothServer(data_received, port=1)
+    print("Bluetooth server started")
 
 
 # Initialize Tkinter window

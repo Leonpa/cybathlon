@@ -10,13 +10,12 @@ import mediapipe as mp
 import threading
 from queue import Queue
 import json
-import bluetooth
+from bluedot.btcomm import BluetoothClient
 
-SERVER_BLUETOOTH_ADDRESS = "B8:27:EB:D1:35:D4"
-SERVER_BLUETOOTH_PORT = 1
+SERVER_BLUETOOTH_ADDRESS = "B8:27:EB:D1:35:D4"  # Replace with the actual MAC address of the server
 
 
-def process_detections(detection_result, client_socket):
+def process_detections(detection_result, client):
     for detection in detection_result:
         bbox = detection.bounding_box
         start_point = (int(bbox.origin_x), int(bbox.origin_y))
@@ -36,15 +35,14 @@ def process_detections(detection_result, client_socket):
             "center": (center_x, center_y)
         }
 
-        client_socket.send(json.dumps(data).encode('utf-8'))
+        client.send(json.dumps(data))
 
         print(f"Detected {label} with confidence {confidence:.2f}")
         print(f"Bounding box: x ({center_x}), y ({center_y})")
 
 
 def main():
-    client_socket = bluetooth.BluetoothSocket(bluetooth.RFCOMM)
-    client_socket.connect((SERVER_BLUETOOTH_ADDRESS, SERVER_BLUETOOTH_PORT))
+    client = BluetoothClient(SERVER_BLUETOOTH_ADDRESS, port=1)
     print("Connected to Bluetooth server")
 
     picam2 = Picamera2()
@@ -75,7 +73,7 @@ def main():
 
                 detection_result = detector.detect(mp_image)
                 classified_detections = classify_white(image_rgb, detection_result.detections)
-                process_detections(classified_detections, client_socket)
+                process_detections(classified_detections, client)
 
     try:
         capture_thread = threading.Thread(target=capture_frames)
@@ -90,7 +88,7 @@ def main():
 
     finally:
         picam2.close()
-        client_socket.close()
+        client.disconnect()
 
 
 if __name__ == "__main__":
