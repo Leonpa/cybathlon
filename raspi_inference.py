@@ -10,26 +10,10 @@ import mediapipe as mp
 import threading
 from queue import Queue
 import json
-import socket
+import bluetooth
 
-DISCOVERY_PORT = 5001  # Port for discovery messages
-
-
-def discover_server():
-    udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    udp_socket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-    udp_socket.settimeout(5)
-
-    message = b'DISCOVER_SERVER'
-    udp_socket.sendto(message, ('<broadcast>', DISCOVERY_PORT))
-
-    try:
-        data, server_address = udp_socket.recvfrom(1024)
-        if data.decode('utf-8') == 'SERVER_HERE':
-            return server_address[0]
-    except socket.timeout:
-        print("Server discovery timed out.")
-        return None
+SERVER_BLUETOOTH_ADDRESS = "B8:27:EB:D1:35:D4"
+SERVER_BLUETOOTH_PORT = 1
 
 
 def process_detections(detection_result, client_socket):
@@ -52,21 +36,16 @@ def process_detections(detection_result, client_socket):
             "center": (center_x, center_y)
         }
 
-        client_socket.sendall(json.dumps(data).encode('utf-8'))
+        client_socket.send(json.dumps(data).encode('utf-8'))
 
         print(f"Detected {label} with confidence {confidence:.2f}")
         print(f"Bounding box: x ({center_x}), y ({center_y})")
 
 
 def main():
-    # Discover server IP
-    server_ip = discover_server()
-    if not server_ip:
-        print("Server not found!")
-        return
-
-    client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    client_socket.connect((server_ip, 5000))  # Replace with server's IP and port
+    client_socket = bluetooth.BluetoothSocket(bluetooth.RFCOMM)
+    client_socket.connect((SERVER_BLUETOOTH_ADDRESS, SERVER_BLUETOOTH_PORT))
+    print("Connected to Bluetooth server")
 
     picam2 = Picamera2()
     camera_config = picam2.create_preview_configuration(main={"size": (1600, 1200)})  # Set resolution to 1600x1200

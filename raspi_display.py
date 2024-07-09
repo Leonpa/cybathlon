@@ -1,9 +1,9 @@
 import tkinter as tk
-import socket
+import bluetooth
 import threading
 import json
 
-DISCOVERY_PORT = 5001  # Port for discovery messages
+SERVER_BLUETOOTH_PORT = 1
 
 
 def draw_map(data, canvas):
@@ -30,41 +30,31 @@ def close_application(event=None):
 
 
 def scan_action():
-    # Placeholder for the scan button action
     print("Scan button pressed")
 
 
 def server_thread():
-    server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server_socket.bind(('0.0.0.0', 5000))  # Bind to all available interfaces and port 5000
+    server_socket = bluetooth.BluetoothSocket(bluetooth.RFCOMM)
+    server_socket.bind(("", SERVER_BLUETOOTH_PORT))
     server_socket.listen(1)
-    print("Server listening on port", 5000)
+    print("Bluetooth server listening on port", SERVER_BLUETOOTH_PORT)
+
+    client_socket, client_info = server_socket.accept()
+    print("Accepted connection from", client_info)
 
     while True:
-        client_socket, addr = server_socket.accept()
-        print('Connection from:', addr)
-        while True:
-            data = client_socket.recv(1024)
-            if not data:
-                break
-            data = json.loads(data.decode('utf-8'))
-            print("Received data:", data)
-            x, y = data["center"]
-            label = data["label"]
-            obj = {"x": x, "y": y, "shape": "square", "text": label}
-            received_data["map"].append(obj)
-            draw_map(received_data, canvas)
-        client_socket.close()
+        data = client_socket.recv(1024)
+        if not data:
+            break
+        data = json.loads(data.decode('utf-8'))
+        print("Received data:", data)
+        x, y = data["center"]
+        label = data["label"]
+        obj = {"x": x, "y": y, "shape": "square", "text": label}
+        received_data["map"].append(obj)
+        draw_map(received_data, canvas)
 
-
-def discovery_responder():
-    udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    udp_socket.bind(('0.0.0.0', DISCOVERY_PORT))
-
-    while True:
-        data, addr = udp_socket.recvfrom(1024)
-        if data.decode('utf-8') == 'DISCOVER_SERVER':
-            udp_socket.sendto(b'SERVER_HERE', addr)
+    client_socket.close()
 
 
 # Initialize Tkinter window
@@ -97,9 +87,9 @@ scan_button.place(relx=0.5, rely=1.0, anchor='s')
 received_data = {
     "map": []
 }
+
 # Start the server thread
 threading.Thread(target=server_thread, daemon=True).start()
-threading.Thread(target=discovery_responder, daemon=True).start()
 
 # Start the Tkinter main loop
 root.mainloop()
