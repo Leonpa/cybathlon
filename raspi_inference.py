@@ -50,51 +50,21 @@ def process_detections(detection_result, client):
         data = {
             "label": label,
             "confidence": confidence,
-            "start_point": start_point,
-            "end_point": end_point,
             "center": (center_x, center_y)
         }
 
-        try:
-            client.send(json.dumps(data) + '\n')
-            print(f"Sent data at {time.time()}: {data}")
-        except Exception as e:
-            print(f"Connection lost. Attempting to reconnect... {e}")
-            reconnect(client)
+        client.send(json.dumps(data) + '\n')
 
         print(f"Detected {label} with confidence {confidence:.2f}")
         print(f"Bounding box: x ({center_x}), y ({center_y})")
-
-
-def reconnect(client):
-    while True:
-        try:
-            client.connect((SERVER_BLUETOOTH_ADDRESS, 1))
-            print("Reconnected to Bluetooth server")
-            break
-        except Exception as e:
-            print(f"Reconnection failed. Retrying in 5 seconds... {e}")
-            time.sleep(5)
-
-
-def connect_client():
-    client = BluetoothClient(SERVER_BLUETOOTH_ADDRESS, dummy_callback, port=1)
-    while True:
-        try:
-            client.connect()
-            print("Connected to Bluetooth server")
-            break
-        except Exception as e:
-            print(f"Connection refused. Retrying in 5 seconds... {e}")
-            time.sleep(5)
-    return client
 
 
 def main():
     if not pair_device(SERVER_BLUETOOTH_ADDRESS):
         return
 
-    client = connect_client()
+    client = BluetoothClient(SERVER_BLUETOOTH_ADDRESS, dummy_callback, port=1)
+    print("Connected to Bluetooth server")
 
     picam2 = Picamera2()
     camera_config = picam2.create_preview_configuration(main={"size": (1600, 1200)})  # Set resolution to 1600x1200
@@ -124,10 +94,8 @@ def main():
 
                 detection_result = detector.detect(mp_image)
                 classified_detections = classify_white(image_rgb, detection_result.detections)
-                start_time = time.time()
                 process_detections(classified_detections, client)
-                end_time = time.time()
-                print(f"Time taken for processing and sending: {end_time - start_time:.2f} seconds")
+
 
     try:
         capture_thread = threading.Thread(target=capture_frames)
