@@ -18,10 +18,10 @@ SERVER_BLUETOOTH_ADDRESS = "B8:27:EB:D1:35:D4"  # Replace with the actual MAC ad
 
 def pair_device(address):
     print(f"Pairing with {address}...")
-    result = subprocess.run(['bluetoothctl', 'pair', address], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    result = subprocess.run(['/usr/bin/bluetoothctl', 'pair', address], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     if "Pairing successful" in result.stdout or "org.bluez.Error.AlreadyExists" in result.stdout or "org.bluez.Error.AlreadyExists" in result.stderr:
-        subprocess.run(['bluetoothctl', 'trust', address], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-        subprocess.run(['bluetoothctl', 'connect', address], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        subprocess.run(['/usr/bin/bluetoothctl', 'trust', address], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        subprocess.run(['/usr/bin/bluetoothctl', 'connect', address], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         print(f"Successfully paired with {address}")
         return True
     else:
