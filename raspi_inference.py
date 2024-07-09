@@ -39,7 +39,7 @@ def process_detections(detection_result, client):
             "center": (center_x, center_y)
         }
 
-        client.send(json.dumps(data))
+        client.send(json.dumps(data) + '\n')
 
         print(f"Detected {label} with confidence {confidence:.2f}")
         print(f"Bounding box: x ({center_x}), y ({center_y})")

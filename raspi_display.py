@@ -32,13 +32,20 @@ def scan_action():
 
 
 def data_received(data):
-    data = json.loads(data)
-    print("Received data:", data)
-    x, y = data["center"]
-    label = data["label"]
-    obj = {"x": x, "y": y, "shape": "square", "text": label}
-    received_data["map"].append(obj)
-    draw_map(received_data, canvas)
+    # Split the incoming data by newline character
+    messages = data.split('\n')
+    for message in messages:
+        if message.strip():  # Ensure that the message is not empty
+            try:
+                parsed_data = json.loads(message)
+                print("Received data:", parsed_data)
+                x, y = parsed_data["center"]
+                label = parsed_data["label"]
+                obj = {"x": x, "y": y, "shape": "square", "text": label}
+                received_data["map"].append(obj)
+                draw_map(received_data, canvas)
+            except json.JSONDecodeError as e:
+                print(f"Failed to decode JSON message: {e}")
 
 
 def server_thread():
