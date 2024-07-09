@@ -10,7 +10,7 @@ import mediapipe as mp
 import threading
 from queue import Queue
 import json
-from bluedot.btcomm import BluetoothClient, BluetoothError
+from bluedot.btcomm import BluetoothClient
 import subprocess
 
 SERVER_BLUETOOTH_ADDRESS = "B8:27:EB:D1:35:D4"  # Replace with the actual MAC address of the server
@@ -58,8 +58,8 @@ def process_detections(detection_result, client):
         try:
             client.send(json.dumps(data) + '\n')
             print(f"Sent data at {time.time()}: {data}")
-        except BluetoothError:
-            print("Connection lost. Attempting to reconnect...")
+        except Exception as e:
+            print(f"Connection lost. Attempting to reconnect... {e}")
             reconnect(client)
 
         print(f"Detected {label} with confidence {confidence:.2f}")
@@ -72,8 +72,8 @@ def reconnect(client):
             client.connect((SERVER_BLUETOOTH_ADDRESS, 1))
             print("Reconnected to Bluetooth server")
             break
-        except BluetoothError:
-            print("Reconnection failed. Retrying in 5 seconds...")
+        except Exception as e:
+            print(f"Reconnection failed. Retrying in 5 seconds... {e}")
             time.sleep(5)
 
 
