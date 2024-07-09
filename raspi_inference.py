@@ -10,7 +10,7 @@ import mediapipe as mp
 import threading
 from queue import Queue
 import json
-from bluedot.btcomm import BluetoothClient
+from bluedot.btcomm import BluetoothClient, BluetoothError
 import subprocess
 
 SERVER_BLUETOOTH_ADDRESS = "B8:27:EB:D1:35:D4"  # Replace with the actual MAC address of the server
@@ -50,13 +50,31 @@ def process_detections(detection_result, client):
         data = {
             "label": label,
             "confidence": confidence,
+            "start_point": start_point,
+            "end_point": end_point,
             "center": (center_x, center_y)
         }
 
-        client.send(json.dumps(data) + '\n')
+        try:
+            client.send(json.dumps(data) + '\n')
+            print(f"Sent data at {time.time()}: {data}")
+        except BluetoothError:
+            print("Connection lost. Attempting to reconnect...")
+            reconnect(client)
 
         print(f"Detected {label} with confidence {confidence:.2f}")
         print(f"Bounding box: x ({center_x}), y ({center_y})")
+
+
+def reconnect(client):
+    while True:
+        try:
+            client.connect((SERVER_BLUETOOTH_ADDRESS, 1))
+            print("Reconnected to Bluetooth server")
+            break
+        except BluetoothError:
+            print("Reconnection failed. Retrying in 5 seconds...")
+            time.sleep(5)
 
 
 def main():
@@ -94,8 +112,10 @@ def main():
 
                 detection_result = detector.detect(mp_image)
                 classified_detections = classify_white(image_rgb, detection_result.detections)
+                start_time = time.time()
                 process_detections(classified_detections, client)
-
+                end_time = time.time()
+                print(f"Time taken for processing and sending: {end_time - start_time:.2f} seconds")
 
     try:
         capture_thread = threading.Thread(target=capture_frames)

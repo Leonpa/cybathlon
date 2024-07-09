@@ -79,10 +79,25 @@ def data_received(data):
 
 
 def server_thread():
+    def handle_client(client):
+        while True:
+            try:
+                data = client.recv(1024)
+                if not data:
+                    break
+                data_received(data.decode('utf-8'))
+            except Exception as e:
+                print(f"Client connection error: {e}")
+                break
+        client.close()
+
     server = BluetoothServer(data_received, port=1)
     print("Bluetooth server started")
     while True:
-        time.sleep(0.1)  # Adjust sleep time as necessary
+        client, addr = server.accept()
+        print(f"Accepted connection from {addr}")
+        threading.Thread(target=handle_client, args=(client,)).start()
+        time.sleep(0.1)
 
 
 # Initialize Tkinter window
