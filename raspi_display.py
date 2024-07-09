@@ -12,8 +12,8 @@ THEORETICAL_WIDTH = 1600
 THEORETICAL_HEIGHT = 1200
 
 # Actual display dimensions (adjust these values as per your 3.5-inch display resolution)
-DISPLAY_WIDTH = 800
-DISPLAY_HEIGHT = 600
+DISPLAY_WIDTH = 600
+DISPLAY_HEIGHT = 450
 
 # Scaling factors
 SCALE_X = DISPLAY_WIDTH / THEORETICAL_WIDTH
