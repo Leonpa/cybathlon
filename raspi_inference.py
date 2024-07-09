@@ -12,6 +12,25 @@ from queue import Queue
 import json
 import socket
 
+DISCOVERY_PORT = 5001  # Port for discovery messages
+
+
+def discover_server():
+    udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    udp_socket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+    udp_socket.settimeout(5)
+
+    message = b'DISCOVER_SERVER'
+    udp_socket.sendto(message, ('<broadcast>', DISCOVERY_PORT))
+
+    try:
+        data, server_address = udp_socket.recvfrom(1024)
+        if data.decode('utf-8') == 'SERVER_HERE':
+            return server_address[0]
+    except socket.timeout:
+        print("Server discovery timed out.")
+        return None
+
 
 def process_detections(detection_result, client_socket):
     for detection in detection_result:
@@ -40,8 +59,14 @@ def process_detections(detection_result, client_socket):
 
 
 def main():
+    # Discover server IP
+    server_ip = discover_server()
+    if not server_ip:
+        print("Server not found!")
+        return
+
     client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    client_socket.connect(('192.168.1.10', 5000))  # Replace with server's IP and port
+    client_socket.connect((server_ip, 5000))  # Replace with server's IP and port
 
     picam2 = Picamera2()
     camera_config = picam2.create_preview_configuration(main={"size": (1600, 1200)})  # Set resolution to 1600x1200

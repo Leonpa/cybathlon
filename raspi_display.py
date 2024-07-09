@@ -3,6 +3,8 @@ import socket
 import threading
 import json
 
+DISCOVERY_PORT = 5001  # Port for discovery messages
+
 
 def draw_map(data, canvas):
     # Clear previous drawings
@@ -55,6 +57,16 @@ def server_thread():
         client_socket.close()
 
 
+def discovery_responder():
+    udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    udp_socket.bind(('0.0.0.0', DISCOVERY_PORT))
+
+    while True:
+        data, addr = udp_socket.recvfrom(1024)
+        if data.decode('utf-8') == 'DISCOVER_SERVER':
+            udp_socket.sendto(b'SERVER_HERE', addr)
+
+
 # Initialize Tkinter window
 root = tk.Tk()
 root.title("Map Display")
@@ -87,6 +99,7 @@ received_data = {
 }
 # Start the server thread
 threading.Thread(target=server_thread, daemon=True).start()
+threading.Thread(target=discovery_responder, daemon=True).start()
 
 # Start the Tkinter main loop
 root.mainloop()
