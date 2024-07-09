@@ -32,10 +32,9 @@ def scan_action():
 
 
 def data_received(data):
-    # Split the incoming data by newline character
     messages = data.split('\n')
     for message in messages:
-        if message.strip():  # Ensure that the message is not empty
+        if message.strip():
             try:
                 parsed_data = json.loads(message)
                 print("Received data:", parsed_data)

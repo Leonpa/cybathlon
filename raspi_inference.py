@@ -11,8 +11,24 @@ import threading
 from queue import Queue
 import json
 from bluedot.btcomm import BluetoothClient
+import subprocess
 
 SERVER_BLUETOOTH_ADDRESS = "B8:27:EB:D1:35:D4"  # Replace with the actual MAC address of the server
+
+
+def pair_device(address):
+    print(f"Pairing with {address}...")
+    result = subprocess.run(['bluetoothctl', 'pair', address], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    if "Pairing successful" in result.stdout:
+        subprocess.run(['bluetoothctl', 'trust', address], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        subprocess.run(['bluetoothctl', 'connect', address], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        print(f"Successfully paired with {address}")
+        return True
+    else:
+        print(f"Failed to pair with {address}")
+        print(result.stdout)
+        print(result.stderr)
+        return False
 
 
 def dummy_callback(data):
@@ -46,6 +62,9 @@ def process_detections(detection_result, client):
 
 
 def main():
+    if not pair_device(SERVER_BLUETOOTH_ADDRESS):
+        return
+
     client = BluetoothClient(SERVER_BLUETOOTH_ADDRESS, dummy_callback, port=1)
     print("Connected to Bluetooth server")
 
