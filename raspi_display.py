@@ -12,12 +12,20 @@ THEORETICAL_WIDTH = 1600
 THEORETICAL_HEIGHT = 1200
 
 # Actual display dimensions (adjust these values as per your 3.5-inch display resolution)
-DISPLAY_WIDTH = 480
-DISPLAY_HEIGHT = 320
+DISPLAY_WIDTH = 800
+DISPLAY_HEIGHT = 600
 
 # Scaling factors
 SCALE_X = DISPLAY_WIDTH / THEORETICAL_WIDTH
 SCALE_Y = DISPLAY_HEIGHT / THEORETICAL_HEIGHT
+
+# Label mapping
+LABEL_MAPPING = {
+    "cat_2-hard": "Hard Cylinder",
+    "cat_3-soft": "Soft Cylinder",
+    "background-soft": "Soft Cube",
+    "background-hard": "Hard Cube"
+}
 
 
 def draw_map(data, canvas):
@@ -25,7 +33,7 @@ def draw_map(data, canvas):
     canvas.delete("all")
 
     # Draw the theoretical bounding box
-    canvas.create_rectangle(0, 0, DISPLAY_WIDTH, DISPLAY_HEIGHT, outline="black", width=10)
+    canvas.create_rectangle(0, 0, DISPLAY_WIDTH, DISPLAY_HEIGHT, outline="black", width=6)
 
     # Draw new map
     for obj in data["map"]:
@@ -36,9 +44,9 @@ def draw_map(data, canvas):
         color = obj["color"]
 
         if shape == "square":
-            canvas.create_rectangle(x, y, x + 20 * SCALE_X, y + 20 * SCALE_Y, fill=color)
+            canvas.create_rectangle(x, y, x + 30 * SCALE_X, y + 30 * SCALE_Y, fill=color)
         elif shape == "round":
-            canvas.create_oval(x, y, x + 20 * SCALE_X, y + 20 * SCALE_Y, fill=color)
+            canvas.create_oval(x, y, x + 30 * SCALE_X, y + 30 * SCALE_Y, fill=color)
 
         canvas.create_text(x + 25 * SCALE_X, y + 10 * SCALE_Y, text=text, anchor=tk.W)
 
@@ -65,11 +73,14 @@ def data_received(data):
                 x, y = parsed_data["center"]
                 label = parsed_data["label"]
 
+                # Map label to display name
+                display_name = LABEL_MAPPING.get(label, label)
+
                 # Determine shape and color based on category
                 shape = "round" if label in CIRCLE_CATEGORIES else "square"
                 color = "red" if "-soft" in label else "green"
 
-                obj = {"x": x, "y": y, "shape": shape, "text": label, "color": color}
+                obj = {"x": x, "y": y, "shape": shape, "text": display_name, "color": color}
                 received_data["map"].append(obj)
                 last_processed_time = time.time()
             except json.JSONDecodeError as e:
@@ -79,25 +90,10 @@ def data_received(data):
 
 
 def server_thread():
-    def handle_client(client):
-        while True:
-            try:
-                data = client.recv(1024)
-                if not data:
-                    break
-                data_received(data.decode('utf-8'))
-            except Exception as e:
-                print(f"Client connection error: {e}")
-                break
-        client.close()
-
     server = BluetoothServer(data_received, port=1)
     print("Bluetooth server started")
     while True:
-        client, addr = server.accept()
-        print(f"Accepted connection from {addr}")
-        threading.Thread(target=handle_client, args=(client,)).start()
-        time.sleep(0.1)
+        time.sleep(0.1)  # Adjust sleep time as necessary
 
 
 # Initialize Tkinter window

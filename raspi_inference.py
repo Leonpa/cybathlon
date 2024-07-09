@@ -96,7 +96,6 @@ def main():
                 classified_detections = classify_white(image_rgb, detection_result.detections)
                 process_detections(classified_detections, client)
 
-
     try:
         capture_thread = threading.Thread(target=capture_frames)
         process_thread = threading.Thread(target=process_frames)
