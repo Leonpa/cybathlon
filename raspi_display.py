@@ -4,6 +4,9 @@ import json
 from bluedot.btcomm import BluetoothServer
 import time
 
+# Define categories that should get a circle
+CIRCLE_CATEGORIES = ["cat_2-hard", "cat_3-soft"]
+
 
 def draw_map(data, canvas):
     # Clear previous drawings
@@ -14,7 +17,7 @@ def draw_map(data, canvas):
         y = obj["y"]
         shape = obj["shape"]
         text = obj["text"]
-        color = "blue"
+        color = obj["color"]
 
         if shape == "square":
             canvas.create_rectangle(x, y, x + 20, y + 20, fill=color)
@@ -43,7 +46,12 @@ def data_received(data):
                 print(f"Received data at {time.time()}: {parsed_data}")
                 x, y = parsed_data["center"]
                 label = parsed_data["label"]
-                obj = {"x": x, "y": y, "shape": "square", "text": label}
+
+                # Determine shape and color based on category
+                shape = "round" if label in CIRCLE_CATEGORIES else "square"
+                color = "red" if "-soft" in label else "green"
+
+                obj = {"x": x, "y": y, "shape": shape, "text": label, "color": color}
                 received_data["map"].append(obj)
                 draw_map(received_data, canvas)
                 last_processed_time = time.time()
