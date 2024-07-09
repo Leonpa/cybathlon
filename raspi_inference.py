@@ -9,7 +9,7 @@ from utils.color_classify import classify_white
 import mediapipe as mp
 import threading
 from queue import Queue
-import jsona
+import json
 from bluedot.btcomm import BluetoothClient
 import subprocess
 
