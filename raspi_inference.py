@@ -77,12 +77,24 @@ def reconnect(client):
             time.sleep(5)
 
 
+def connect_client():
+    client = BluetoothClient(SERVER_BLUETOOTH_ADDRESS, dummy_callback, port=1)
+    while True:
+        try:
+            client.connect()
+            print("Connected to Bluetooth server")
+            break
+        except Exception as e:
+            print(f"Connection refused. Retrying in 5 seconds... {e}")
+            time.sleep(5)
+    return client
+
+
 def main():
     if not pair_device(SERVER_BLUETOOTH_ADDRESS):
         return
 
-    client = BluetoothClient(SERVER_BLUETOOTH_ADDRESS, dummy_callback, port=1)
-    print("Connected to Bluetooth server")
+    client = connect_client()
 
     picam2 = Picamera2()
     camera_config = picam2.create_preview_configuration(main={"size": (1600, 1200)})  # Set resolution to 1600x1200
