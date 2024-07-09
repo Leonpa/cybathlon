@@ -15,6 +15,10 @@ from bluedot.btcomm import BluetoothClient
 SERVER_BLUETOOTH_ADDRESS = "B8:27:EB:D1:35:D4"  # Replace with the actual MAC address of the server
 
 
+def dummy_callback(data):
+    pass
+
+
 def process_detections(detection_result, client):
     for detection in detection_result:
         bbox = detection.bounding_box
@@ -42,7 +46,7 @@ def process_detections(detection_result, client):
 
 
 def main():
-    client = BluetoothClient(SERVER_BLUETOOTH_ADDRESS, port=1)
+    client = BluetoothClient(SERVER_BLUETOOTH_ADDRESS, dummy_callback, port=1)
     print("Connected to Bluetooth server")
 
     picam2 = Picamera2()
